@@ -1,6 +1,0 @@
-your_project/
-├── app.py          # 主页面（用于上传数据和参数设置）
-├── Pages/
-│   ├── 1_🌡️_Temperature.py   # 温度图表页
-│   └── 2_🧂_Salinity.py      # 盐度图表页
-└── requirements.txt
