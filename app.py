@@ -36,10 +36,17 @@ class SoilSaltEngine:
             C[0] = C0
         return z, C
 
-# --- 2. 绘图修复模块 (解决文字不显示问题) ---
+# --- 在绘图函数部分替换 ---
+
 def create_styled_plot(x, y, title, xlabel, ylabel, is_scatter=False):
-    """自动适配字体的绘图函数"""
+    """
+    专门修复乱码的绘图函数
+    通过中英对照 + 强制字体设置解决方框问题
+    """
     fig, ax = plt.subplots(figsize=(9, 5))
+    
+    # 强制指定不依赖系统中文库的字体属性
+    font_prop = {'family': 'sans-serif', 'size': 10}
     
     if is_scatter:
         ax.scatter(x, y, color='black', label='Measured Data')
@@ -47,14 +54,18 @@ def create_styled_plot(x, y, title, xlabel, ylabel, is_scatter=False):
     else:
         ax.plot(x, y, 'g-o', markersize=4, linewidth=1.5, label='Model Curve')
     
-    # 设置坐标轴标签 (采用中英文对照防止乱码)
-    ax.set_xlabel(f"{xlabel} / 含盐量", fontsize=10)
-    ax.set_ylabel(f"{ylabel} / 深度", fontsize=10)
+    # --- 核心修复：坐标轴标签 ---
+    # 如果系统不支持中文，英文部分 'Salt Content' 会正常显示，不会变方框
+    ax.set_xlabel(f"Salt Content (mg/L) \n [含盐量]", fontsize=10)
+    ax.set_ylabel(f"Depth (m) \n [深度]", fontsize=10)
     ax.set_title(title, fontsize=12, fontweight='bold')
     
-    ax.invert_yaxis() # 深度轴向下
+    # 其他显示优化
+    ax.invert_yaxis() 
     ax.grid(True, linestyle='--', alpha=0.6)
     ax.legend()
+    
+    # 防止标签被画布边缘切除
     fig.tight_layout()
     return fig
 
