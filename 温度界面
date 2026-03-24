@@ -1,0 +1,31 @@
+import streamlit as st
+import matplotlib.pyplot as plt
+import numpy as np
+
+st.set_page_config(page_title="温度分析", layout="wide")
+st.title("🌡️ 土壤温度剖面分析")
+
+# 检查数据是否存在
+if 'df' in st.session_state:
+    df = st.session_state['df']
+    t_col = st.session_state['t_col']
+    t_obs = df[t_col].values
+    z_obs = np.linspace(0, 1.0, len(t_obs))
+
+    # --- 绘图逻辑 (专业科研制图) ---
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+    
+    fig, ax1 = plt.subplots(figsize=(8, 6))
+    ax1.plot(t_obs, z_obs, 'r-o', markersize=5, label='Measured Temp')
+    ax1.set_xlabel("Temperature (°C)")
+    ax1.set_ylabel("Depth (m)")
+    ax1.invert_yaxis() # 深度向下增加
+    ax1.grid(True, linestyle='--', alpha=0.7)
+    ax1.legend()
+    
+    st.pyplot(fig)
+    st.info("该图展示了土壤温度随深度的变化趋势。")
+
+else:
+    st.error("❌ 错误：主页面未上传数据。请返回主页上传。")
