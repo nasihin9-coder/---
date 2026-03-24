@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-软件名称：变饱和带土壤盐分动态监测与归趋预报软件 V1.0
-功能描述：支持传感器数据上传、热-盐耦合数值模拟及 R2 回归精度分析
+软件名称：变饱和带土壤热-盐耦合监测与归趋预报软件 V1.0
+功能描述：通过温度场与浓度场耦合计算，实现土壤含盐量的精准反演与 R2 精度评价
 """
 
 import streamlit as st
@@ -9,140 +9,115 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# --- 核心计算引擎 ---
-class SoilAnalyticsEngine:
+# --- 1. 核心计算引擎 (热-盐耦合逻辑) ---
+class CoupledPhysicsEngine:
     @staticmethod
     def calculate_r2(obs, sim):
-        """计算决定系数 R2 [体现软著技术深度]"""
         obs, sim = np.array(obs), np.array(sim)
         res = np.sum((obs - sim) ** 2)
         tot = np.sum((obs - np.mean(obs)) ** 2)
         return max(0, 1 - (res / (tot + 1e-12)))
 
     @staticmethod
-    def run_simulation(C0, q, Dh, theta, dx, depth_max=1.0):
-        """热-盐耦合物理模型核心算法"""
+    def thermal_salt_model(T_obs, C0, q, Dh_base, theta, dx, depth_max=1.0):
+        """
+        根据温度监测值修正盐分迁移过程
+        T_obs: 传感器监测到的温度数组
+        """
         z = np.arange(0, depth_max + dx, dx)
-        C = np.full(len(z), 500.0) # 背景盐度
+        C = np.full(len(z), 500.0) 
         C[0] = C0
+        
+        # 温度对弥散系数的修正 (温度越高，分子扩散越活跃)
+        # 简化公式：Dh = Dh_base * (T/25)
+        T_avg = np.mean(T_obs) if len(T_obs) > 0 else 25.0
+        Dh_corrected = Dh_base * (T_avg / 25.0)
+        
         v = q / (theta + 1e-12)
-        dt = 0.5 * (dx**2) / (Dh + abs(v)*dx + 1e-12)
+        dt = 0.5 * (dx**2) / (Dh_corrected + abs(v)*dx + 1e-12)
         steps = min(int(86400 / dt), 500)
+        
         for _ in range(steps):
             C_new = np.copy(C)
             for i in range(1, len(C)-1):
-                diff = Dh * (C[i+1] - 2*C[i] + C[i-1]) / (dx**2)
+                diff = Dh_corrected * (C[i+1] - 2*C[i] + C[i-1]) / (dx**2)
                 adv = -v * (C[i] - C[i-1]) / dx if v > 0 else -v * (C[i+1] - C[i]) / dx
                 C_new[i] = C[i] + (diff + adv) * dt
             C = np.clip(C_new, 0, 100000)
             C[0] = C0
         return z, C
 
-# --- 界面绘图修复 (解决方框乱码) ---
-def plot_results(z, c, title, label="Simulation"):
-    fig, ax = plt.subplots(figsize=(9, 5))
-    ax.plot(c, z, 'g-o', markersize=4, label=label)
+# --- 2. 界面绘图 (修复乱码) ---
+def plot_coupled_results(z, c, t_data, r2):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     
-    # 强制使用中英双语标签，确保英文部分 100% 可读
-    ax.set_xlabel("Salinity / 含盐量 (mg/L)", fontsize=10)
-    ax.set_ylabel("Depth / 深度 (m)", fontsize=10)
-    ax.set_title(title, fontsize=12, fontweight='bold')
+    # 左图：温度剖面 (传感器监测)
+    ax1.plot(t_data, z[:len(t_data)], 'r-s', label='Temp Observed')
+    ax1.set_xlabel("Temperature / 温度 (°C)")
+    ax1.set_ylabel("Depth / 深度 (m)")
+    ax1.invert_yaxis()
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
+
+    # 右图：盐度回归分析
+    ax2.plot(c, z, 'g-', linewidth=2, label=f'Model (R²={r2:.4f})')
+    ax2.set_xlabel("Salinity / 含盐量 (mg/L)")
+    ax2.invert_yaxis()
+    ax2.grid(True, alpha=0.3)
+    ax2.legend()
     
-    ax.invert_yaxis()
-    ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend()
     fig.tight_layout()
     return fig
 
-# --- 软件主体框架 ---
+# --- 3. 软件主体 ---
 def main():
-    st.set_page_config(page_title="土壤盐分监测预报系统 V1.0", layout="wide")
+    st.set_page_config(page_title="热-盐耦合土壤监测系统", layout="wide")
     
-    if 'current_page' not in st.session_state:
-        st.session_state.current_page = '主界面'
+    if 'page' not in st.session_state:
+        st.session_state.page = '首页'
 
-    # 侧边栏：物理参数调优
-    st.sidebar.title("🔬 核心物理参数")
-    Dh = st.sidebar.number_input("弥散系数 Dh (m²/s)", value=1e-7, format="%.1e")
+    # 侧边栏参数
+    st.sidebar.title("🛠️ 耦合参数配置")
+    Dh_base = st.sidebar.number_input("基准弥散系数 (25°C)", value=1e-7, format="%.1e")
     theta = st.sidebar.slider("土壤孔隙度", 0.1, 0.6, 0.35)
-    dx = st.sidebar.slider("步长 Δx (m)", 0.01, 0.1, 0.05)
-
-    if st.session_state.current_page == '主界面':
-        show_home()
-    elif st.session_state.current_page == '数据分析':
-        show_analysis(Dh, theta, dx)
-
-def show_home():
-    st.title("🌱 变饱和带土壤盐分动态监测软件")
-    st.caption("版本：V1.0 | 开发单位：河海大学水利水电学院")
-    st.markdown("---")
     
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        st.subheader("功能入口")
-        if st.button("📈 传感器数据上传与回归分析", use_container_width=True):
-            st.session_state.current_page = '数据分析'
-    with col2:
-        st.info("本系统支持直接上传现场传感器监测的 CSV 数据，通过热-盐耦合模型进行归趋分析。")
-        # 示意图
-        st.write("**监测原理图预览**")
-        fig, ax = plt.subplots(figsize=(6, 2))
-        ax.text(0.5, 0.5, "Sensors Data -> Coupling Engine -> R2 Result", ha='center', va='center', bbox=dict(facecolor='green', alpha=0.1))
-        ax.axis('off')
-        st.pyplot(fig)
-
-def show_analysis(Dh, theta, dx):
-    st.header("📈 传感器数据上传与回归分析")
-    
-    # 1. 数据上传模块
-    uploaded_file = st.file_uploader("第一步：上传传感器监测 CSV 数据", type="csv")
-    
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.write("已识别传感器数据预览：", df.head(3))
+    if st.session_state.page == '首页':
+        st.title("🌡️ 变饱和带土壤热-盐耦合监测软件")
+        st.caption("版本：V1.0 | 核心算法：温度修正盐分迁移模型")
+        if st.button("进入传感器数据分析中心", use_container_width=True):
+            st.session_state.page = '分析页'
         
-        # 2. 自动提取参数与模拟
-        col_ctrl, col_res = st.columns([1, 2])
-        with col_ctrl:
-            st.subheader("模拟参数确认")
-            c0 = st.number_input("监测地表盐度 (mg/L)", value=float(df.iloc[0,1]) if df.shape[1]>1 else 35000.0)
-            q_est = st.number_input("预估通量 q (m/s)", value=4.4e-6, format="%.1e")
+        # 封面原理图
+        st.write("---")
+        st.write("**热-盐耦合计算逻辑说明**")
+        st.latex(r"D_h(T) = D_{base} \cdot \frac{T_{obs}}{25}")
+        st.latex(r"\frac{\partial C}{\partial t} = D_h(T) \frac{\partial^2 C}{\partial z^2} - v \frac{\partial C}{\partial z}")
+
+    elif st.session_state.page == '分析页':
+        st.header("📈 传感器数据驱动分析")
+        up_file = st.file_uploader("上传传感器 CSV 数据 (需包含 Temperature 和 Salinity 列)", type="csv")
+        
+        if up_file:
+            df = pd.read_csv(up_file)
+            st.dataframe(df.head(5))
             
-            if st.button("执行模型回归", type="primary"):
-                # 物理模拟
-                z_sim, c_sim = SoilAnalyticsEngine.run_simulation(c0, q_est, Dh, theta, dx)
+            if st.button("开始热-盐耦合解算", type="primary"):
+                # 获取温度和实测盐度
+                t_obs = df['Temperature'].values if 'Temperature' in df.columns else np.full(len(df), 25.0)
+                c_obs = df['Salinity'].values if 'Salinity' in df.columns else df.iloc[:, 1].values
                 
-                # 构造对比数据（假设 CSV 第二列是实测值）
-                z_obs = np.linspace(0, 1.0, len(df))
-                c_obs = df.iloc[:, 1].values[:len(z_sim)]
+                # 执行模拟
+                z_sim, c_sim = CoupledPhysicsEngine.thermal_salt_model(t_obs, c_obs[0], 4.4e-6, Dh_base, theta, 0.05)
                 
                 # 计算 R2
-                r2_val = SoilAnalyticsEngine.calculate_r2(c_obs, c_sim[:len(c_obs)])
+                r2 = CoupledPhysicsEngine.calculate_r2(c_obs, c_sim[:len(c_obs)])
                 
-                st.session_state.results = (z_sim, c_sim, r2_val, z_obs, c_obs)
-
-        # 3. 结果图形展示
-        with col_res:
-            if 'results' in st.session_state:
-                z_s, c_s, r2, z_o, c_o = st.session_state.results
-                
-                # 绘制综合对比图
-                fig, ax = plt.subplots(figsize=(8, 5))
-                ax.scatter(c_o, z_o, color='black', label='Sensor Observed / 传感器实测')
-                ax.plot(c_s, z_s, 'g-', linewidth=2, label=f'Model Regression / 模型回归 (R²={r2:.4f})')
-                
-                ax.set_xlabel("Salinity / 含盐量 (mg/L)")
-                ax.set_ylabel("Depth / 深度 (m)")
-                ax.invert_yaxis()
-                ax.legend()
-                ax.grid(True, alpha=0.3)
+                # 绘图
+                fig = plot_coupled_results(z_sim, c_sim, t_obs, r2)
                 st.pyplot(fig)
-                
-                st.metric("模型回归精度 (R²)", f"{r2:.4f}")
-                st.latex(r"R^2 = 1 - \frac{\sum(y_{obs}-y_{sim})^2}{\sum(y_{obs}-\bar{y})^2}")
+                st.metric("耦合回归精度 R²", f"{r2:.4f}")
 
-    if st.button("⬅️ 返回主页"):
-        st.session_state.current_page = '主界面'
+        if st.button("⬅️ 返回主页"): st.session_state.page = '首页'
 
 if __name__ == "__main__":
     main()
