@@ -4,99 +4,41 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline
+from sklearn.metrics import r2_score
 import time
 
 st.set_page_config(page_title="温度剖面分析", layout="wide")
 st.title("🌡️ 温度剖面动态交互分析")
 
 if st.session_state.get('df') is not None:
-    df = st.session_state['df']
-    z_col = st.session_state['z_col']
-    t_col = st.session_state['t_col']
+    df, z_col, t_col = st.session_state['df'], st.session_state['z_col'], st.session_state['t_col']
+    t_obs, z_obs = df[t_col].values, df[z_col].values
     
-    st.sidebar.subheader("📈 绘图配置")
-    smooth_level = st.sidebar.slider("曲线平滑度 (Spline K)", 2, 5, 3)
-    
-    t_obs = df[t_col].values
-    z_obs = df[z_col].values
-
+    # 计算拟合与准确度
     z_smooth = np.linspace(z_obs.min(), z_obs.max(), 100)
-    spl = make_interp_spline(z_obs, t_obs, k=smooth_level)
-    t_smooth = spl(z_smooth)
+    spl = make_interp_spline(z_obs, t_obs, k=3)
+    t_pred_at_obs = spl(z_obs)
+    r2 = r2_score(t_obs, t_pred_at_obs)
 
-    calc_btn = st.button("🚀 开始计算", type="primary")
-    chart_spot = st.empty() 
+    # 结果看板
+    m1, m2, m3 = st.columns(3)
+    m1.metric("最大计算深度", f"{z_obs.max():.2f} m")
+    m2.metric("拟合准确度 (R²)", f"{r2:.4f}")
+    m3.metric("温度极值", f"{t_obs.min():.1f} - {t_obs.max():.1f} °C")
+    st.divider()
 
-    if calc_btn:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x_min, x_max = min(t_obs)-1, max(t_obs)+1
-        y_min, y_max = max(z_obs)+0.1, min(z_obs)-0.1 
-
-        # 阶段1：快速渲染实测散点 (加大步长，减少卡顿)
-        step_scatter = max(2, len(z_obs) // 5)
-        for i in range(step_scatter, len(z_obs) + step_scatter, step_scatter):
+    if st.button("🚀 开始计算", type="primary"):
+        chart_spot = st.empty()
+        fig, ax = plt.subplots(figsize=(10, 5))
+        t_smooth = spl(z_smooth)
+        
+        for i in range(5, 105, 5):
             ax.clear()
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            ax.set_xlabel("Temperature (°C)")
-            ax.set_ylabel("Depth (m)")
-            ax.grid(True, alpha=0.3)
-            ax.scatter(t_obs[:i], z_obs[:i], color='darkred', edgecolors='white', label='Measured')
+            ax.set_xlim(t_obs.min()-1, t_obs.max()+1)
+            ax.set_ylim(z_obs.max()+0.1, z_obs.min()-0.1)
+            ax.scatter(t_obs, z_obs, color='darkred', alpha=0.3, label='Measured')
+            ax.plot(t_smooth[:i], z_smooth[:i], color='red', linewidth=2, label='Spline Fit')
             chart_spot.pyplot(fig)
             time.sleep(0.01)
-
-        # 阶段2：平滑高速拉出拟合曲线
-        step_line = max(2, len(z_smooth) // 20)
-        for i in range(step_line, len(z_smooth) + step_line, step_line):
-            current_i = min(i, len(z_smooth))
-            ax.clear()
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            ax.set_xlabel("Temperature (°C)")
-            ax.set_ylabel("Depth (m)")
-            ax.grid(True, alpha=0.3)
-            ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
-            ax.plot(t_smooth[:current_i], z_smooth[:current_i], color='red', linewidth=2, label='Trend Line')
-            chart_spot.pyplot(fig)
-            time.sleep(0.01)
-            
-        st.session_state['temp_calc_done'] = True
-        st.success("✨ 空间场重构计算完成！")
-        plt.close(fig)
-        
-    elif st.session_state.get('temp_calc_done'):
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(t_smooth, z_smooth, color='red', linewidth=2, label='Trend Line')
-        ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
-        ax.invert_yaxis()
-        ax.set_xlabel("Temperature (°C)")
-        ax.set_ylabel("Depth (m)")
-        ax.grid(True, alpha=0.3)
-        ax.legend()
-        chart_spot.pyplot(fig)
-        
-    else:
-        chart_spot.info("ℹ️ 请调整左侧参数后，点击上方【🚀 开始计算】按钮执行空间场重构与绘图。")
-
-    with st.expander("🧮 展开查看底层物理与计算过程"):
-        st.markdown("#### 1. B-Spline 多项式插值原理")
-        st.latex(r"S(z) = \sum_{i=0}^{n-1} c_i B_{i, k}(z)")
-        dt_dz = np.gradient(t_obs, z_obs)
-        calc_df = pd.DataFrame({"观测深度 (m)": z_obs, "实测温度 (°C)": t_obs, "温度梯度 (dT/dz)": np.round(dt_dz, 4)})
-        st.dataframe(calc_df.head(5), use_container_width=True)
-
 else:
     st.warning("请先在主页上传数据")
-# ... (前面的导入和初始化代码保持不变)
-
-if st.session_state.get('df') is not None:
-    # ... (获取数据和插值逻辑保持不变)
-    
-    # --- 新增结果看板 ---
-    cols_m = st.columns(3)
-    cols_m[0].metric("计算深度范围", f"{z_obs.min()} - {z_obs.max()} m")
-    cols_m[1].metric("最高观测温度", f"{t_obs.max():.2f} °C")
-    cols_m[2].metric("最低观测温度", f"{t_obs.min():.2f} °C")
-    st.divider()
-    
-    # ... (后续的计算按钮和动画逻辑保持不变)
