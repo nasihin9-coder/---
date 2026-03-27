@@ -1,105 +1,43 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
 import time
 
 st.set_page_config(page_title="盐度拟合分析", layout="wide")
-st.title("🧂 盐度运移模型交互拟合 (倒灌场景)")
+st.title("🧂 盐度运移模型交互拟合")
 
 if st.session_state.get('df') is not None:
     df = st.session_state['df']
-    z_obs = df[st.session_state['z_col']].values
-    c_obs = df[st.session_state['s_col']].values
-    dh = st.session_state.get('dh', 8.0e-5)
+    z_obs, c_obs = df[st.session_state['z_col']].values, df[st.session_state['s_col']].values
+    c_base = st.sidebar.number_input("背景盐度", 200, 2000, 1000)
     
-    st.sidebar.subheader("🛠️ 模型微调")
-    c_base = st.sidebar.number_input("表层背景盐度 (mg/L)", 200, 2000, 1200)
-    line_style = st.sidebar.selectbox("曲线样式", ["实线", "虚线", "点划线"])
-    styles = {"实线": "-", "虚线": "--", "点划线": "-."}
-    
-    z_max = z_obs.max()
-    z_sim = np.linspace(0, z_max, 100)
-    k_factor = 3.5 * (dh / 8.0e-5)
-    c_bottom = c_obs[-1]
-    c_sim = c_base + (c_bottom - c_base) * np.exp(-k_factor * (z_max - z_sim))
-    
-    calc_btn = st.button("🚀 开始计算", type="primary")
-    chart_spot = st.empty()
+    # 物理模型计算
+    k_factor = 3.5 * (st.session_state['dh'] / 8.0e-5)
+    c_pred = c_base + (c_obs[-1] - c_base) * np.exp(-k_factor * (z_obs.max() - z_obs))
+    r2 = r2_score(c_obs, c_pred)
 
-    if calc_btn:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x_min, x_max = 0, max(c_obs)*1.1
-        y_min, y_max = z_max+0.1, min(z_obs)-0.1
+    # 结果看板
+    m1, m2, m3 = st.columns(3)
+    m1.metric("监测深度跨度", f"{z_obs.max():.2f} m")
+    m2.metric("模型匹配度 (R²)", f"{max(0, r2):.4f}")
+    m3.metric("扩散系数 (K)", f"{k_factor:.4f}")
+    st.divider()
 
-        # 🚀 阶段1：快速渲染实测散点 (自上而下打点)
-        step_scatter = max(2, len(z_obs) // 6) # 控制打点速度
-        for i in range(step_scatter, len(z_obs) + step_scatter, step_scatter):
+    if st.button("🚀 开始动态拟合", type="primary"):
+        chart_spot = st.empty()
+        fig, ax = plt.subplots(figsize=(10, 5))
+        z_sim = np.linspace(0, z_obs.max(), 100)
+        c_sim = c_base + (c_obs[-1] - c_base) * np.exp(-k_factor * (z_obs.max() - z_sim))
+        
+        for i in range(len(z_sim)-1, -1, -5):
             ax.clear()
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            ax.set_xlabel("Salinity (mg/L)")
-            ax.set_ylabel("Depth (m)")
-            
-            # 绘制到当前索引的散点
-            ax.scatter(c_obs[:i], z_obs[:i], color='gray', alpha=0.5, label='Measured (Intrusion)')
+            ax.set_xlim(0, c_obs.max()*1.1)
+            ax.set_ylim(z_obs.max()+0.1, 0)
+            ax.scatter(c_obs, z_obs, color='gray', alpha=0.5)
+            ax.plot(c_sim[i:], z_sim[i:], color='darkorange', linewidth=3)
             chart_spot.pyplot(fig)
             time.sleep(0.01)
-
-        # 🌊 阶段2：海水倒灌拟合曲线 (自下而上拉出)
-        step_line = max(2, len(z_sim) // 20)
-        for i in range(len(z_sim)-1, -1, -step_line):
-            ax.clear()
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            ax.set_xlabel("Salinity (mg/L)")
-            ax.set_ylabel("Depth (m)")
-            
-            # 保持所有散点常驻
-            ax.scatter(c_obs, z_obs, color='gray', alpha=0.5, label='Measured (Intrusion)')
-            # 从当前索引画到底部
-            ax.plot(c_sim[i:], z_sim[i:], color='darkorange', linestyle=styles[line_style], linewidth=3, label='Intrusion Model')
-            
-            chart_spot.pyplot(fig)
-            time.sleep(0.01)
-            
-        st.session_state['sal_calc_done'] = True
-        st.success("✨ 倒灌拟合与误差演算完成！")
-        plt.close(fig)
-        
-    elif st.session_state.get('sal_calc_done'):
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.scatter(c_obs, z_obs, color='gray', alpha=0.5, label='Measured (Intrusion)')
-        ax.plot(c_sim, z_sim, color='darkorange', linestyle=styles[line_style], linewidth=3, label='Intrusion Model')
-        ax.set_xlabel("Salinity (mg/L)")
-        ax.set_ylabel("Depth (m)")
-        ax.invert_yaxis()
-        ax.legend()
-        chart_spot.pyplot(fig)
-        
-    else:
-        chart_spot.info("ℹ️ 请调整左侧边界参数后，点击上方【🚀 开始计算】按钮驱动物理模型运行。")
-
-    with st.expander("🧮 展开查看底层物理与计算过程"):
-        st.latex(r"C(z) = C_{surf} + (C_{bottom} - C_{surf}) \cdot \exp\left(-\frac{v}{D_h} (Z_{max} - z)\right)")
-        c_theory = c_base + (c_bottom - c_base) * np.exp(-k_factor * (z_max - z_obs))
-        error = np.abs(c_obs - c_theory)
-        residual_df = pd.DataFrame({"深度 z(m)": z_obs, "实测倒灌盐度": c_obs, "模型理论值": np.round(c_theory, 1), "绝对残差": np.round(error, 1)})
-        st.dataframe(residual_df.head(5), use_container_width=True)
-
 else:
     st.warning("请先在主页上传数据")
-# ... (前面的导入和初始化代码保持不变)
-
-if st.session_state.get('df') is not None:
-    # ... (获取数据和模型参数逻辑保持不变)
-    
-    # --- 新增结果看板 ---
-    cols_m = st.columns(3)
-    cols_m[0].metric("模拟覆盖深度", f"{z_max:.2f} m")
-    cols_m[1].metric("底层端元浓度", f"{c_bottom:.0f} mg/L")
-    cols_m[2].metric("动力学系数 K", f"{k_factor:.4f}")
-    st.divider()
-    
-    # ... (后续的计算按钮和动画逻辑保持不变)
