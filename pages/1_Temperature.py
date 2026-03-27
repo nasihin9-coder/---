@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline
+from sklearn.metrics import r2_score  # 移至顶部
 import time
 
 st.set_page_config(page_title="温度剖面分析", layout="wide")
@@ -20,6 +21,7 @@ if st.session_state.get('df') is not None:
     t_obs = df[t_col].values
     z_obs = df[z_col].values
 
+    # 预计算拟合数据
     z_smooth = np.linspace(z_obs.min(), z_obs.max(), 100)
     spl = make_interp_spline(z_obs, t_obs, k=smooth_level)
     t_smooth = spl(z_smooth)
@@ -27,12 +29,15 @@ if st.session_state.get('df') is not None:
     calc_btn = st.button("🚀 开始计算", type="primary")
     chart_spot = st.empty() 
 
+    # 结果看板的容器（放在按钮下方，图表上方或下方均可，此处设为动态填充）
+    metrics_spot = st.empty()
+
     if calc_btn:
         fig, ax = plt.subplots(figsize=(10, 6))
         x_min, x_max = min(t_obs)-1, max(t_obs)+1
         y_min, y_max = max(z_obs)+0.1, min(z_obs)-0.1 
 
-        # 阶段1：快速渲染实测散点 (加大步长，减少卡顿)
+        # 阶段1：快速渲染实测散点
         step_scatter = max(2, len(z_obs) // 5)
         for i in range(step_scatter, len(z_obs) + step_scatter, step_scatter):
             ax.clear()
@@ -63,8 +68,22 @@ if st.session_state.get('df') is not None:
         st.session_state['temp_calc_done'] = True
         st.success("✨ 空间场重构计算完成！")
         plt.close(fig)
+
+        # --- 页面底部结果看板 (加在 calc_btn 逻辑结束处) ---
+        with metrics_spot.container():
+            st.divider()
+            st.subheader("📊 计算结果摘要")
+            cols = st.columns(2)
+            
+            # 计算 R2 精度
+            t_pred = spl(z_obs)
+            r2 = r2_score(t_obs, t_pred)
+            
+            cols[0].metric("最大计算深度", f"{z_obs.max():.2f} m")
+            cols[1].metric("拟合精度 (R²)", f"{r2:.4f}")
         
     elif st.session_state.get('temp_calc_done'):
+        # 如果已经计算过，保持显示图表和看板
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(t_smooth, z_smooth, color='red', linewidth=2, label='Trend Line')
         ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
@@ -74,6 +93,16 @@ if st.session_state.get('df') is not None:
         ax.grid(True, alpha=0.3)
         ax.legend()
         chart_spot.pyplot(fig)
+
+        # 保持显示看板
+        with metrics_spot.container():
+            st.divider()
+            st.subheader("📊 计算结果摘要")
+            cols = st.columns(2)
+            t_pred = spl(z_obs)
+            r2 = r2_score(t_obs, t_pred)
+            cols[0].metric("最大计算深度", f"{z_obs.max():.2f} m")
+            cols[1].metric("拟合精度 (R²)", f"{r2:.4f}")
         
     else:
         chart_spot.info("ℹ️ 请调整左侧参数后，点击上方【🚀 开始计算】按钮执行空间场重构与绘图。")
@@ -87,19 +116,3 @@ if st.session_state.get('df') is not None:
 
 else:
     st.warning("请先在主页上传数据")
-# ... (前面导入和绘图代码保持不变)
-    if st.button("🚀 开始计算", type="primary"):
-        # ... (动画循环代码)
-        
-        # --- 页面底部结果看板 ---
-        st.divider()
-        st.subheader("📊 计算结果摘要")
-        cols = st.columns(2)
-        
-        # 计算 R2 精度
-        from sklearn.metrics import r2_score
-        t_pred = spl(z_obs)
-        r2 = r2_score(t_obs, t_pred)
-        
-        cols[0].metric("最大计算深度", f"{z_obs.max():.2f} m")
-        cols[1].metric("拟合精度 (R²)", f"{r2:.4f}")
