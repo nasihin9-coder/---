@@ -87,3 +87,16 @@ if st.session_state.get('df') is not None:
 
 else:
     st.warning("请先在主页上传数据")
+# ... (前面的导入和初始化代码保持不变)
+
+if st.session_state.get('df') is not None:
+    # ... (数据和 q_mean 计算逻辑保持不变)
+    
+    # --- 新增结果看板 ---
+    cols_m = st.columns(3)
+    cols_m[0].metric("反演有效深度", f"{z_obs.max()} m")
+    cols_m[1].metric("平均水通量 q", f"{q_mean:.5f} cm/h")
+    cols_m[2].metric("热扩散率 α", f"{alpha}")
+    st.divider()
+    
+    # ... (后续的计算按钮和动画逻辑保持不变)
