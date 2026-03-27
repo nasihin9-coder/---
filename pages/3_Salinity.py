@@ -25,29 +25,33 @@ if st.session_state.get('df') is not None:
     c_bottom = c_obs[-1]
     c_sim = c_base + (c_bottom - c_base) * np.exp(-k_factor * (z_max - z_sim))
     
-    # 1. 核心按钮
     calc_btn = st.button("🚀 开始计算", type="primary")
     chart_spot = st.empty()
 
-    # 2. 状态机逻辑
     if calc_btn:
         fig, ax = plt.subplots(figsize=(10, 6))
         x_min, x_max = 0, max(c_obs)*1.1
         y_min, y_max = z_max+0.1, min(z_obs)-0.1
 
-        for i in range(len(z_sim)-1, -1, -2):
+        # 优化动画：合并帧数，实现快速连贯的自下而上动画
+        step_line = max(2, len(z_sim) // 20)
+        for i in range(len(z_sim)-1, -1, -step_line):
             ax.clear()
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
             ax.set_xlabel("Salinity (mg/L)")
             ax.set_ylabel("Depth (m)")
+            
             ax.scatter(c_obs, z_obs, color='gray', alpha=0.5, label='Measured (Intrusion)')
+            # 利用切片从当前索引画到底部
             ax.plot(c_sim[i:], z_sim[i:], color='darkorange', linestyle=styles[line_style], linewidth=3, label='Intrusion Model')
+            
             chart_spot.pyplot(fig)
-            time.sleep(0.015)
+            time.sleep(0.01)
             
         st.session_state['sal_calc_done'] = True
         st.success("✨ 倒灌拟合与误差演算完成！")
+        plt.close(fig)
         
     elif st.session_state.get('sal_calc_done'):
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -62,7 +66,6 @@ if st.session_state.get('df') is not None:
     else:
         chart_spot.info("ℹ️ 请调整左侧边界参数后，点击上方【🚀 开始计算】按钮驱动物理模型运行。")
 
-    # (保留您之前的计算过程面板代码...)
     with st.expander("🧮 展开查看底层物理与计算过程"):
         st.latex(r"C(z) = C_{surf} + (C_{bottom} - C_{surf}) \cdot \exp\left(-\frac{v}{D_h} (Z_{max} - z)\right)")
         c_theory = c_base + (c_bottom - c_base) * np.exp(-k_factor * (z_max - z_obs))
