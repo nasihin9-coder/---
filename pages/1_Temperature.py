@@ -24,17 +24,17 @@ if st.session_state.get('df') is not None:
     spl = make_interp_spline(z_obs, t_obs, k=smooth_level)
     t_smooth = spl(z_smooth)
 
-    # 1. 核心按钮：开始计算
     calc_btn = st.button("🚀 开始计算", type="primary")
     chart_spot = st.empty() 
 
-    # 2. 状态机逻辑
     if calc_btn:
         fig, ax = plt.subplots(figsize=(10, 6))
         x_min, x_max = min(t_obs)-1, max(t_obs)+1
         y_min, y_max = max(z_obs)+0.1, min(z_obs)-0.1 
 
-        for i in range(1, len(z_obs) + 1):
+        # 阶段1：快速渲染实测散点 (加大步长，减少卡顿)
+        step_scatter = max(2, len(z_obs) // 5)
+        for i in range(step_scatter, len(z_obs) + step_scatter, step_scatter):
             ax.clear()
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
@@ -43,9 +43,12 @@ if st.session_state.get('df') is not None:
             ax.grid(True, alpha=0.3)
             ax.scatter(t_obs[:i], z_obs[:i], color='darkred', edgecolors='white', label='Measured')
             chart_spot.pyplot(fig)
-            time.sleep(0.05)
+            time.sleep(0.01)
 
-        for i in range(1, len(z_smooth), 3):
+        # 阶段2：平滑高速拉出拟合曲线
+        step_line = max(2, len(z_smooth) // 20)
+        for i in range(step_line, len(z_smooth) + step_line, step_line):
+            current_i = min(i, len(z_smooth))
             ax.clear()
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
@@ -53,16 +56,15 @@ if st.session_state.get('df') is not None:
             ax.set_ylabel("Depth (m)")
             ax.grid(True, alpha=0.3)
             ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
-            ax.plot(t_smooth[:i], z_smooth[:i], color='red', linewidth=2, label='Trend Line')
+            ax.plot(t_smooth[:current_i], z_smooth[:current_i], color='red', linewidth=2, label='Trend Line')
             chart_spot.pyplot(fig)
-            time.sleep(0.02)
+            time.sleep(0.01)
             
-        # 记录计算已完成的状态
         st.session_state['temp_calc_done'] = True
         st.success("✨ 空间场重构计算完成！")
+        plt.close(fig)
         
     elif st.session_state.get('temp_calc_done'):
-        # 计算完成后，保持显示最终静态图
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(t_smooth, z_smooth, color='red', linewidth=2, label='Trend Line')
         ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
@@ -74,10 +76,8 @@ if st.session_state.get('df') is not None:
         chart_spot.pyplot(fig)
         
     else:
-        # 初始等待界面
         chart_spot.info("ℹ️ 请调整左侧参数后，点击上方【🚀 开始计算】按钮执行空间场重构与绘图。")
 
-    # (保留您之前的计算过程和绘图过程面板代码即可...)
     with st.expander("🧮 展开查看底层物理与计算过程"):
         st.markdown("#### 1. B-Spline 多项式插值原理")
         st.latex(r"S(z) = \sum_{i=0}^{n-1} c_i B_{i, k}(z)")
