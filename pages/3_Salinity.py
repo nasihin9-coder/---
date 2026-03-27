@@ -33,21 +33,17 @@ if st.session_state.get('df') is not None:
         x_min, x_max = 0, max(c_obs)*1.1
         y_min, y_max = z_max+0.1, min(z_obs)-0.1
 
-        # 🚀 阶段1：快速渲染实测散点 (自上而下打点)
-        step_scatter = max(2, len(z_obs) // 6) # 控制打点速度
+        step_scatter = max(2, len(z_obs) // 6)
         for i in range(step_scatter, len(z_obs) + step_scatter, step_scatter):
             ax.clear()
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
             ax.set_xlabel("Salinity (mg/L)")
             ax.set_ylabel("Depth (m)")
-            
-            # 绘制到当前索引的散点
             ax.scatter(c_obs[:i], z_obs[:i], color='gray', alpha=0.5, label='Measured (Intrusion)')
             chart_spot.pyplot(fig)
             time.sleep(0.01)
 
-        # 🌊 阶段2：海水倒灌拟合曲线 (自下而上拉出)
         step_line = max(2, len(z_sim) // 20)
         for i in range(len(z_sim)-1, -1, -step_line):
             ax.clear()
@@ -55,12 +51,8 @@ if st.session_state.get('df') is not None:
             ax.set_ylim(y_min, y_max)
             ax.set_xlabel("Salinity (mg/L)")
             ax.set_ylabel("Depth (m)")
-            
-            # 保持所有散点常驻
             ax.scatter(c_obs, z_obs, color='gray', alpha=0.5, label='Measured (Intrusion)')
-            # 从当前索引画到底部
             ax.plot(c_sim[i:], z_sim[i:], color='darkorange', linestyle=styles[line_style], linewidth=3, label='Intrusion Model')
-            
             chart_spot.pyplot(fig)
             time.sleep(0.01)
             
@@ -77,16 +69,15 @@ if st.session_state.get('df') is not None:
         ax.invert_yaxis()
         ax.legend()
         chart_spot.pyplot(fig)
-        
     else:
         chart_spot.info("ℹ️ 请调整左侧边界参数后，点击上方【🚀 开始计算】按钮驱动物理模型运行。")
 
+    # 展开栏移到了有数据的 if 语句块内，彻底解决 NameError
     with st.expander("🧮 展开查看底层物理与计算过程"):
         st.latex(r"C(z) = C_{surf} + (C_{bottom} - C_{surf}) \cdot \exp\left(-\frac{v}{D_h} (Z_{max} - z)\right)")
         c_theory = c_base + (c_bottom - c_base) * np.exp(-k_factor * (z_max - z_obs))
         error = np.abs(c_obs - c_theory)
         residual_df = pd.DataFrame({"深度 z(m)": z_obs, "实测倒灌盐度": c_obs, "模型理论值": np.round(c_theory, 1), "绝对残差": np.round(error, 1)})
         st.dataframe(residual_df.head(5), use_container_width=True)
-
 else:
     st.warning("请先在主页上传数据")
