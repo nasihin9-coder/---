@@ -16,18 +16,20 @@ if st.session_state.get('df') is not None:
     st.sidebar.subheader("🧪 物理参数补偿")
     alpha = st.sidebar.select_slider("土壤热扩散率 (α)", options=[0.002, 0.004, 0.006, 0.008], value=0.004)
     
+    # 避免分母为0或过小导致的极端数值
     dt_dz = np.gradient(t_obs, z_obs)
     d2t_dz2 = np.gradient(dt_dz, z_obs)
-    q_mean = np.mean(-alpha * (d2t_dz2 / (dt_dz + 1e-5)))
+    q_mean = np.mean(-alpha * (d2t_dz2 / (dt_dz + 1e-3))) 
     
     z_sim = np.linspace(0, z_obs.max(), 100)
     flux_profile = q_mean * (1 + 0.1 * np.sin(z_sim * 5)) 
     
+    # 修复X轴计算逻辑，增加绝对保底范围，防止数据过于集中导致画不出图
     x_limit_min = min(0, np.min(flux_profile))
     x_limit_max = max(0, np.max(flux_profile))
-    margin = (x_limit_max - x_limit_min) * 0.1
-    if margin == 0: 
-        margin = 0.1
+    margin = abs(x_limit_max - x_limit_min) * 0.2
+    if margin < 0.05: 
+        margin = 0.05
     x_min = x_limit_min - margin
     x_max = x_limit_max + margin
     y_min, y_max = max(z_obs)+0.1, min(z_obs)-0.1
@@ -37,21 +39,21 @@ if st.session_state.get('df') is not None:
 
     if calc_btn:
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # 优化动画：将绘制压缩至 20 帧左右，实现丝滑灌水效果
         step_line = max(2, len(z_sim) // 20) 
         
         for i in range(step_line, len(z_sim) + step_line, step_line):
             current_i = min(i, len(z_sim))
+            # 确保至少有两个点才能画出线
+            if current_i < 2:
+                continue
+                
             ax.clear()
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
             ax.set_xlabel("Water Flux (cm/h)")
             ax.set_ylabel("Depth (m)")
             
-            # 始终绘制零通量基准线
             ax.axvline(0, color='gray', linestyle='--', linewidth=1, alpha=0.5)
-            
             ax.plot(flux_profile[:current_i], z_sim[:current_i], color='#1f77b4', linewidth=3, label='Inverted Water Flux')
             ax.fill_betweenx(z_sim[:current_i], 0, flux_profile[:current_i], color='#1f77b4', alpha=0.1)
             
@@ -82,8 +84,5 @@ if st.session_state.get('df') is not None:
 
     with st.expander("🧮 展开查看底层物理与计算过程"):
         st.latex(r"q = -\alpha \frac{\partial^2 T / \partial z^2}{\partial T / \partial z}")
-        calc_df = pd.DataFrame({"深度 z(m)": z_obs, "一阶导数 ∇T": np.round(dt_dz, 4), "瞬态反演流速 q": np.round(-alpha * (d2t_dz2 / (dt_dz + 1e-5)), 5)})
-        st.dataframe(calc_df.head(5), use_container_width=True)
-
 else:
     st.warning("请先在主页上传数据")
