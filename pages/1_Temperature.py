@@ -87,3 +87,16 @@ if st.session_state.get('df') is not None:
 
 else:
     st.warning("请先在主页上传数据")
+# ... (前面的导入和初始化代码保持不变)
+
+if st.session_state.get('df') is not None:
+    # ... (获取数据和插值逻辑保持不变)
+    
+    # --- 新增结果看板 ---
+    cols_m = st.columns(3)
+    cols_m[0].metric("计算深度范围", f"{z_obs.min()} - {z_obs.max()} m")
+    cols_m[1].metric("最高观测温度", f"{t_obs.max():.2f} °C")
+    cols_m[2].metric("最低观测温度", f"{t_obs.min():.2f} °C")
+    st.divider()
+    
+    # ... (后续的计算按钮和动画逻辑保持不变)
