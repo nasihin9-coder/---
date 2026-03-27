@@ -87,3 +87,19 @@ if st.session_state.get('df') is not None:
 
 else:
     st.warning("请先在主页上传数据")
+# ... (前面导入和绘图代码保持不变)
+    if st.button("🚀 开始计算", type="primary"):
+        # ... (动画循环代码)
+        
+        # --- 页面底部结果看板 ---
+        st.divider()
+        st.subheader("📊 计算结果摘要")
+        cols = st.columns(2)
+        
+        # 计算 R2 精度
+        from sklearn.metrics import r2_score
+        t_pred = spl(z_obs)
+        r2 = r2_score(t_obs, t_pred)
+        
+        cols[0].metric("最大计算深度", f"{z_obs.max():.2f} m")
+        cols[1].metric("拟合精度 (R²)", f"{r2:.4f}")
