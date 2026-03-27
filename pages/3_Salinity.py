@@ -33,7 +33,21 @@ if st.session_state.get('df') is not None:
         x_min, x_max = 0, max(c_obs)*1.1
         y_min, y_max = z_max+0.1, min(z_obs)-0.1
 
-        # 优化动画：合并帧数，实现快速连贯的自下而上动画
+        # 🚀 阶段1：快速渲染实测散点 (自上而下打点)
+        step_scatter = max(2, len(z_obs) // 6) # 控制打点速度
+        for i in range(step_scatter, len(z_obs) + step_scatter, step_scatter):
+            ax.clear()
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_min, y_max)
+            ax.set_xlabel("Salinity (mg/L)")
+            ax.set_ylabel("Depth (m)")
+            
+            # 绘制到当前索引的散点
+            ax.scatter(c_obs[:i], z_obs[:i], color='gray', alpha=0.5, label='Measured (Intrusion)')
+            chart_spot.pyplot(fig)
+            time.sleep(0.01)
+
+        # 🌊 阶段2：海水倒灌拟合曲线 (自下而上拉出)
         step_line = max(2, len(z_sim) // 20)
         for i in range(len(z_sim)-1, -1, -step_line):
             ax.clear()
@@ -42,8 +56,9 @@ if st.session_state.get('df') is not None:
             ax.set_xlabel("Salinity (mg/L)")
             ax.set_ylabel("Depth (m)")
             
+            # 保持所有散点常驻
             ax.scatter(c_obs, z_obs, color='gray', alpha=0.5, label='Measured (Intrusion)')
-            # 利用切片从当前索引画到底部
+            # 从当前索引画到底部
             ax.plot(c_sim[i:], z_sim[i:], color='darkorange', linestyle=styles[line_style], linewidth=3, label='Intrusion Model')
             
             chart_spot.pyplot(fig)
