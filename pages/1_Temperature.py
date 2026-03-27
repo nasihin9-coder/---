@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline
+import time  # 必须导入 time 模块控制动画速度
 
 st.set_page_config(page_title="温度剖面分析", layout="wide")
 st.title("🌡️ 温度剖面动态交互分析")
@@ -15,58 +16,65 @@ if st.session_state.get('df') is not None:
     
     st.sidebar.subheader("📈 绘图配置")
     smooth_level = st.sidebar.slider("曲线平滑度 (Spline K)", 2, 5, 3)
-    depth_range = st.sidebar.slider("观测深度范围 (m)", 0.0, float(df[z_col].max()), (0.0, 1.0))
     
-    mask = (df[z_col] >= depth_range[0]) & (df[z_col] <= depth_range[1])
-    df_filtered = df[mask]
-    
-    t_obs = df_filtered[t_col].values
-    z_obs = df_filtered[z_col].values
+    t_obs = df[t_col].values
+    z_obs = df[z_col].values
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    if len(t_obs) > smooth_level:
-        z_smooth = np.linspace(z_obs.min(), z_obs.max(), 300)
-        spl = make_interp_spline(z_obs, t_obs, k=smooth_level)
-        ax.plot(spl(z_smooth), z_smooth, color='red', label='Trend Line')
-    
-    ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
-    ax.set_xlabel("Temperature (°C)")
-    ax.set_ylabel("Depth (m)")
-    ax.invert_yaxis()
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-    st.pyplot(fig)
+    # 准备高分辨率插值数据
+    z_smooth = np.linspace(z_obs.min(), z_obs.max(), 100)
+    spl = make_interp_spline(z_obs, t_obs, k=smooth_level)
+    t_smooth = spl(z_smooth)
 
-    # 1. 计算过程面板
-    with st.expander("🧮 展开查看底层物理与计算过程"):
-        st.markdown("#### 1. B-Spline 多项式插值原理")
-        st.latex(r"S(z) = \sum_{i=0}^{n-1} c_i B_{i, k}(z)")
+    # 预留动画画布位置
+    chart_spot = st.empty() 
+
+    # 点击按钮触发动画绘图
+    if st.button("▶️ 播放动态绘图过程 (动画)"):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        # 固定坐标轴范围，防止动画时画面跳动
+        x_min, x_max = min(t_obs)-1, max(t_obs)+1
+        y_min, y_max = max(z_obs)+0.1, min(z_obs)-0.1 
+
+        # 阶段 1：逐个打上实测散点
+        for i in range(1, len(z_obs) + 1):
+            ax.clear()
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_min, y_max)
+            ax.set_xlabel("Temperature (°C)")
+            ax.set_ylabel("Depth (m)")
+            ax.grid(True, alpha=0.3)
+            # 画前 i 个点
+            ax.scatter(t_obs[:i], z_obs[:i], color='darkred', edgecolors='white', label='Measured')
+            chart_spot.pyplot(fig)
+            time.sleep(0.05) # 控制打点速度
+
+        # 阶段 2：曲线逐渐延伸
+        for i in range(1, len(z_smooth), 3):
+            ax.clear()
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_min, y_max)
+            ax.set_xlabel("Temperature (°C)")
+            ax.set_ylabel("Depth (m)")
+            ax.grid(True, alpha=0.3)
+            # 保持所有散点
+            ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
+            # 画前 i 段曲线
+            ax.plot(t_smooth[:i], z_smooth[:i], color='red', linewidth=2, label='Trend Line')
+            chart_spot.pyplot(fig)
+            time.sleep(0.02) # 控制曲线生长速度
+            
+        st.success("✨ 绘图完成！")
         
-        dt_dz = np.gradient(t_obs, z_obs)
-        calc_df = pd.DataFrame({"观测深度 (m)": z_obs, "实测温度 (°C)": t_obs, "温度梯度 (dT/dz)": np.round(dt_dz, 4)})
-        st.dataframe(calc_df.head(5), use_container_width=True)
-
-    # 2. 新增：可视化渲染过程面板
-    with st.expander("🎨 展开查看图表渲染与可视化绘制过程"):
-        st.markdown("#### 1. 多图层叠加渲染引擎 (Layered Rendering)")
-        st.write("系统前端采用 Matplotlib 引擎，通过分离图层实现数据可视化重构：")
-        st.markdown("- **底层 (Base Layer)**：构建 10x6 英寸画布，初始化 X轴(温度) 与 Y轴(深度)，并开启 `alpha=0.3` 的背景网格。")
-        st.markdown("- **数据层 (Data Layer)**：将离散传感器矩阵映射为 `ax.scatter` 散点图，设定标记颜色为 `darkred` 并带有白色描边以增强对比度。")
-        st.markdown("- **拟合层 (Trend Layer)**：将 B-Spline 生成的 300 个高分辨率插值点组装成 `ax.plot` 连续曲线。")
-        st.markdown("- **坐标系变换**：执行 `ax.invert_yaxis()` 指令，将 Y 轴零点置于顶端，完美符合实际土壤地质深度的物理直觉。")
-        
-        st.markdown("#### 2. 核心 UI 渲染代码摘要")
-        st.code('''# 前端可视化绘图指令流
-fig, ax = plt.subplots(figsize=(10, 6))
-# 图层 1: 绘制插值平滑曲线 (红线)
-ax.plot(spl(z_smooth), z_smooth, color='red', label='Trend Line')
-# 图层 2: 叠加原始实测散点 (暗红色)
-ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white')
-# 图层 3: 地质坐标系翻转与网格激活
-ax.invert_yaxis() 
-ax.grid(True, alpha=0.3)
-# 推送至 Streamlit 前端渲染
-st.pyplot(fig)''', language="python")
-
+    else:
+        # 默认显示完整静态图
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(t_smooth, z_smooth, color='red', linewidth=2, label='Trend Line')
+        ax.scatter(t_obs, z_obs, color='darkred', edgecolors='white', label='Measured')
+        ax.invert_yaxis()
+        ax.set_xlabel("Temperature (°C)")
+        ax.set_ylabel("Depth (m)")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        chart_spot.pyplot(fig)
 else:
     st.warning("请先在主页上传数据")
