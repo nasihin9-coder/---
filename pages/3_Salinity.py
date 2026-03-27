@@ -32,15 +32,15 @@ if st.session_state.get('df') is not None:
     st.pyplot(fig)
     st.download_button("📥 导出拟合数据", df.to_csv().encode('utf-8'), "fitted_data.csv", "text/csv")
     
-    # --- 新增：直观计算过程展示 ---
     with st.expander("🧮 展开查看底层物理与计算过程"):
         st.markdown("#### 1. 溶质运移对流-弥散方程 (解析解)")
         st.write("基于一维稳定流场条件下的盐分衰减模型：")
         st.latex(r"C(z) = C_{base} + (C_0 - C_{base}) \cdot \exp\left(-\frac{v}{D_h} z\right)")
-        st.write(f"当前输入参数：表层初始浓度 $C_0$={c_obs[0]:.1f}, 背景浓度 $C_{base}$={c_base}, 动力学系数 K={k_factor:.4f}")
+        
+        # ⬅️ 修复了这里的 f-string 双大括号问题
+        st.write(f"当前输入参数：表层初始浓度 $C_0$={c_obs[0]:.1f}, 背景浓度 $C_{{base}}$={c_base}, 动力学系数 K={k_factor:.4f}")
         
         st.markdown("#### 2. 模型拟合残差 (Residual) 对比验证表")
-        # 计算对应观测深度的理论模拟值，用于算残差
         c_theory = c_base + (c_obs[0] - c_base) * np.exp(-k_factor * z_obs)
         error = np.abs(c_obs - c_theory)
         
