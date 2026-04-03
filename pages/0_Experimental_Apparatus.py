@@ -2,59 +2,58 @@
 import streamlit as st
 import os
 
-# 1. 配置页面 (作为软著体现：系统架构清晰，功能模块化)
-st.set_page_config(page_title="实验装置介绍", layout="wide")
+# 页面配置
+st.set_page_config(page_title="实验装置说明", layout="wide")
 
-st.title("🔬 一维冻融循环土柱实验装置 (硬件基础)")
+st.title("🔬 室内一维水热盐运移实验装置")
 
-# 2. 描述性文字 (软著体现：软件是基于真实的、特定的硬件实验平台开发的)
+# 页面导言
 st.markdown("""
-> 本软件所采用的数据反演算法与物理模型，均基于下图所示的“一维冻融循环土柱实验装置”开发。
-> 该装置通过精密控制土柱顶部的制冷与加热，模拟野外环境的季节性冻融过程，并实时采集土柱内部的水分、温度、电导率等多物理场数据，为软件提供高精度的校准源数据。
+本反演系统的物理模型与参数标定均基于以下自主研发的实验平台。
+通过模拟不同边界条件下（如恒温水浴、冻融循环）的土壤水分运移，为软件算法提供实测验证数据。
 """)
 
 st.divider()
 
-# 3. 核心图像展示与交互 (视图视图 V)
-# 软著体现：系统具备完善的硬件原理解析功能。
-col_img, col_desc = st.columns([2, 1])
+# 主内容区
+col_img, col_text = st.columns([3, 2])
 
 with col_img:
-    # 假设您的实验装置图文件名为 'experiment_setup.png' 且位于仓库根目录
-    # 为了保证代码健壮性，使用 os.path.exists 检查文件是否存在
-    image_path = "experiment_setup.png" # 请将您的 图14 重命名为此文件名并上传
-    if os.path.exists(image_path):
-        st.image(image_path, use_container_width=True, caption="图9 一维冻融循环土柱实验装置示意图")
+    # 加载装置图
+    img_path = "apparatus_diagram.jpg"
+    if os.path.exists(img_path):
+        st.image(img_path, use_container_width=True, caption="室内一维土柱运移实验装置全景图")
     else:
-        # 如果文件缺失，提供一个友好的提示（同时也方便您测试）
-        st.error(f"❌ 未检测到实验装置图文件 ({image_path})。请将硬件原理解析图重命名为该文件名并上传至 GitHub 仓库根目录。")
-        st.info("提示：您可以将图14上传为 'experiment_setup.png'。")
+        st.error(f"未找到图片文件: {img_path}。请确保图片已上传至根目录。")
 
-with col_desc:
-    st.subheader("🛠️ 装置核心系统解析")
+with col_text:
+    st.subheader("🛠️ 核心硬件构成")
     
-    # 采用 Expanders 折叠面板，展示“硬件-软件”的数据流向
-    # 软著体现：软件具备对复杂硬件系统进行原理解析和数据管理的逻辑能力。
-    
-    with st.expander("❄️ 1. 温控与冻融模拟系统", expanded=True):
-        st.markdown("""
-        - **顶部/底部制冷系统**：通过循环冷却液，精密控制土柱两端的边界温度（可降至-30°C）。
-        - **软硬关联**：该系统产生的温度边界数据，是软件“温度剖面分析”模块的输入条件。
+    with st.expander("1. 恒温动力系统", expanded=True):
+        st.write("""
+        - **THZ-82A 恒温水浴振荡器**：作为系统的热源/冷源中心，提供稳定的补给水温度。
+        - **循环水泵 (Water Pump)**：通过蓝色管线将恒温水注入土柱底部隔温板，模拟地下水边界。
         """)
 
-    with st.expander("📊 2. 数据采集与传感器系统"):
-        st.markdown("""
-        - **马氏瓶/水位线**：维持恒定水头边界。
-        - **多参数传感器**：实时采集不同深度的**土壤水分、温度、电导率**（图上箭头所示的6排探头）。
-        - **软硬关联**：这是软件最核心的数据源。传感器通过 CR1000X 采集的数据 CSV，将直接上传至软件主页。
+    with st.expander("2. 实验土柱主体"):
+        st.write("""
+        - **试样容器**：高透明度有机玻璃柱，便于观察土层变化。
+        - **隔温盖板**：顶部与底部均设有高分子隔温材料，确保一维垂直热传导的准确性。
         """)
 
-    with st.expander("💻 3. 数据处理与界面展示系统"):
-        st.markdown("""
-        - **多通道温度巡检仪 & CR1000X series**：将模拟信号转换为数字信号，进行初步存储。
-        - **电脑 (终端界面)**：即本软件的运行环境，负责数据的进一步反演计算、可视化展示与存储。
+    with st.expander("3. 自动化采集系统"):
+        st.write("""
+        - **多通道温度巡检仪**：连接分布在土柱不同深度的热电偶，实现毫秒级采样。
+        - **土壤电导率传感器**：与温度传感器成对布置，实时监测盐分前锋的运移位置。
         """)
 
-# 4. 底部声明 (增强专业性)
 st.divider()
-st.caption("注：软件系统中的算法逻辑（如偏微分方程求解、B-Spline插值）均需结合该硬件装置的特定物理参数（如试样容器材质、热扩散率）进行校准。")
+
+# 底部物理指标看板 (展示装置精度)
+st.subheader("📊 装置运行参数")
+m1, m2, m3 = st.columns(3)
+m1.metric("温控精度", "±0.1 °C")
+m2.metric("有效采样深度", "1.0 m")
+m3.metric("采样频率", "10 Hz")
+
+st.info("💡 提示：本软件通过 CSV 接口读取‘多通道温度巡检仪’生成的实测数据，并进行自动化的参数重构。")
