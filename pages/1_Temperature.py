@@ -7,7 +7,7 @@ from scipy.interpolate import make_interp_spline
 import time
 
 st.set_page_config(page_title="温度剖面分析", layout="wide")
-st.title("🌡️ 温度剖面动态交互分析")
+st.title(" 温度剖面动态交互分析")
 
 if st.session_state.get('df') is not None:
     df = st.session_state['df']
