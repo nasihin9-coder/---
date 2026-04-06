@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from sklearn.metrics import r2_score
 import platform
 
-# --- 中文乱码修复 ---
+# --- 1. 字体环境兼容性修复 ---
 def set_matplot_zh():
     plt.rcParams['axes.unicode_minus'] = False 
     system = platform.system()
@@ -15,72 +16,85 @@ def set_matplot_zh():
     elif system == "Darwin":
         plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
     else:
+        # Streamlit Cloud 环境下回退到 DejaVu Sans，避免方框乱码
         plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
 
 set_matplot_zh()
 
-st.set_page_config(page_title="盐度拟合分析", layout="wide")
-st.title("🧂 盐度运移模型交互拟合 (倒灌场景)")
+st.set_page_config(page_title="盐度运移分析", layout="wide")
+st.title("🧂 盐度运移模型空间拟合 (海水倒灌)")
 
-# --- 安全检查 ---
+# --- 2. 数据安全检查 ---
 if 'df' not in st.session_state or st.session_state['df'] is None:
-    st.warning("⚠️ 请先在主页上传数据。")
+    st.warning("⚠️ 未检测到数据。请先在主页 (app.py) 上传监测数据 CSV 文件。")
 else:
     df = st.session_state['df']
-    z_obs = df[st.session_state.get('z_col', df.columns[0])].values
-    s_obs = df[st.session_state.get('s_col', df.columns[2])].values
+    # 自动识别列名
+    z_col = st.session_state.get('z_col', df.columns[0])
+    s_col = st.session_state.get('s_col', df.columns[2] if len(df.columns)>2 else df.columns[-1])
+    
+    z_obs = df[z_col].values
+    s_obs = df[s_col].values
 
-    # --- 侧边栏：物理参数微调 ---
-    st.sidebar.subheader("🛠️ 模型参数微调")
-    # 获取全局参数
-    dh_init = st.session_state.get('dh', 8.0e-5)
-    q_init = st.session_state.get('q', 2.0e-6)
+    # --- 3. 物理模型定义：针对倒灌特征优化 ---
+    # 方程逻辑：C(z) = C_surf + (C_bottom - C_surf) * exp(alpha * (z - z_max))
+    def salinity_inversion_model(z, c_surf, alpha):
+        z_max = z_obs.max()
+        c_bottom = s_obs[-1] # 强制锚定底层实测高盐度点
+        return c_surf + (c_bottom - c_surf) * np.exp(alpha * (z - z_max))
 
-    # 定义盐度运移解析解方程 (一维对流扩散方程)
-    # C(z) = C_bottom + (C_surface - C_bottom) * exp(v*z / D)
-    def salinity_model(z, c_surface, v_over_d):
-        c_bottom = s_obs[-1] # 假设底层盐度固定
-        return c_bottom + (c_surface - c_bottom) * np.exp(-v_over_d * (z - z_obs.max()))
-
-    # --- 自动拟合逻辑 ---
-    st.sidebar.divider()
-    auto_fit = st.sidebar.checkbox("开启参数自动寻优", value=True)
-
+    # --- 4. 侧边栏：参数自动寻优 ---
+    st.sidebar.subheader("🛠️ 模型参数优化")
+    auto_fit = st.sidebar.toggle("启用参数自动寻优", value=True)
+    
     if auto_fit:
         try:
-            # 自动寻找最优的表层盐度和衰减系数
-            popt, _ = curve_fit(salinity_model, z_obs, s_obs, p0=[s_obs[0], 2.0])
-            c_surf_opt, v_d_opt = popt
-            st.sidebar.success(f"最优表层盐度: {c_surf_opt:.1f}")
-        except:
-            c_surf_opt, v_d_opt = s_obs[0], 1.0
+            # 初始猜测：表层盐度=最小值，衰减系数=2.0
+            popt, _ = curve_fit(salinity_inversion_model, z_obs, s_obs, p0=[s_obs.min(), 3.0])
+            c_surf_fit, alpha_fit = popt
+            st.sidebar.success(f"最优拟合完成！")
+        except Exception as e:
+            st.sidebar.error(f"寻优失败，请手动调节")
+            c_surf_fit, alpha_fit = s_obs.min(), 1.0
     else:
-        c_surf_opt = st.sidebar.number_input("表层背景盐度 (mg/L)", 0, 50000, int(s_obs[0]))
-        v_d_opt = st.sidebar.slider("运移强度系数", 0.1, 10.0, 2.0)
+        c_surf_fit = st.sidebar.number_input("手动表层盐度 (mg/L)", 0, 10000, int(s_obs.min()))
+        alpha_fit = st.sidebar.slider("手动衰减常数 (alpha)", 0.1, 15.0, 2.0)
 
-    # --- 绘图区域 ---
-    if st.button("🚀 开始模型拟合", type="primary"):
+    # --- 5. 执行拟合与绘图 ---
+    if st.button("🚀 执行模型拟合计算", type="primary"):
         z_sim = np.linspace(z_obs.min(), z_obs.max(), 100)
-        s_sim = salinity_model(z_sim, c_surf_opt, v_d_opt)
+        s_sim = salinity_inversion_model(z_sim, c_surf_fit, alpha_fit)
         
+        # 计算 R2 评价
+        s_pred_at_obs = salinity_inversion_model(z_obs, c_surf_fit, alpha_fit)
+        r2 = r2_score(s_obs, s_pred_at_obs)
+
+        # 绘图逻辑
         fig, ax = plt.subplots(figsize=(10, 6))
-        ax.scatter(s_obs, z_obs, color='gray', alpha=0.6, label='实测盐度数据 (Observed)')
-        ax.plot(s_sim, z_sim, color='orange', linewidth=3, label='最优拟合曲线 (Fitted)')
+        ax.grid(True, linestyle=':', alpha=0.6)
         
+        # 散点与拟合曲线
+        ax.scatter(s_obs, z_obs, color='gray', alpha=0.5, s=60, label='Measured (实测数据)')
+        ax.plot(s_sim, z_sim, color='orange', linewidth=3, label='Fitted Curve (拟合曲线)')
+        
+        # 标签处理（解决乱码并保证跨平台识别）
         ax.set_xlabel("Salinity / 盐度 (mg/L)")
         ax.set_ylabel("Depth / 深度 (m)")
-        ax.invert_yaxis()
-        ax.grid(True, linestyle=':', alpha=0.5)
+        ax.invert_yaxis() # 深度向下
         ax.legend()
         
         st.pyplot(fig)
-        
-        # 计算 R2 评价拟合质量
-        from sklearn.metrics import r2_score
-        s_pred = salinity_model(z_obs, c_surf_opt, v_d_opt)
-        r2 = r2_score(s_obs, s_pred)
-        
+
+        # --- 6. 结果评价看板 ---
         st.divider()
-        col1, col2 = st.columns(2)
-        col1.metric("拟合度 (R²)", f"{r2:.4f}")
-        col2.metric("模型衰减常数", f"{v_d_opt:.3f}")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("拟合优度 (R²)", f"{r2:.4f}", delta="正常" if r2 > 0.9 else "偏低")
+        m2.metric("模型衰减常数", f"{alpha_fit:.3f}")
+        m3.metric("预测表层盐度", f"{c_surf_fit:.1f} mg/L")
+
+        with st.expander("📝 物理机制解释"):
+            st.write(f"""
+            **盐度分布规律**：
+            当前剖面呈现典型的**海水倒灌（Seawater Intrusion）**特征。
+            盐度随深度增加呈指数级上升。模型通过调整衰减常数 $\\alpha$，能够捕捉到盐分在土层深处的急剧扩散边界。
+            """)
