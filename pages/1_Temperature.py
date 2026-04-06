@@ -7,6 +7,24 @@ from scipy.interpolate import UnivariateSpline
 from sklearn.metrics import r2_score, mean_squared_error
 import time
 
+import matplotlib.pyplot as plt
+import platform
+
+# --- 中文显示修复配置 ---
+def set_chinese_font():
+    # 自动识别系统并设置字体
+    if platform.system() == "Windows":
+        plt.rcParams['font.sans-serif'] = ['SimHei'] # Windows 常用黑体
+    elif platform.system() == "Darwin":
+        plt.rcParams['font.sans-serif'] = ['Arial Unicode MS'] # macOS 常用中文
+    else:
+        # Streamlit Cloud 或 Linux 环境通常不自带中文字体
+        # 尝试使用 DejaVu Sans 或 WenQuanYi (文泉驿)
+        plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', 'DejaVu Sans']
+    
+    plt.rcParams['axes.unicode_minus'] = False # 解决负号显示为方块的问题
+
+set_chinese_font()
 # 页面基本配置
 st.set_page_config(page_title="温度剖面分析", layout="wide")
 st.title("🌡️ 温度剖面动态交互分析")
