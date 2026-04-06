@@ -13,7 +13,7 @@ st.sidebar.header("⚙️ 全局模型参数")
 st.session_state['dh'] = st.sidebar.number_input("弥散系数 (Dh)", value=st.session_state['dh'], format="%.1e")
 st.session_state['q'] = st.sidebar.number_input("垂直通量 (q)", value=st.session_state['q'], format="%.1e")
 
-st.title("🌊 滨海盐沼水热盐耦合运移反演系统")
+st.title(" 滨海土壤盐分反演计算系统")
 
 # 检查并显示图片
 if os.path.exists("model_diagram.jpg"):
