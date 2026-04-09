@@ -74,8 +74,8 @@ else:
         ax.grid(True, linestyle=':', alpha=0.6)
         
         # 散点与拟合曲线
-        ax.scatter(s_obs, z_obs, color='gray', alpha=0.5, s=60, label='Measured (实测数据)')
-        ax.plot(s_sim, z_sim, color='orange', linewidth=3, label='Fitted Curve (拟合曲线)')
+        ax.scatter(s_obs, z_obs, color='gray', alpha=0.5, s=60, label='Measured')
+        ax.plot(s_sim, z_sim, color='orange', linewidth=3, label='Fitted Curve')
         
         # 标签处理（解决乱码并保证跨平台识别）
         ax.set_xlabel("Salinity / 盐度 (mg/L)")
@@ -91,10 +91,3 @@ else:
         m1.metric("拟合优度 (R²)", f"{r2:.4f}", delta="正常" if r2 > 0.9 else "偏低")
         m2.metric("模型衰减常数", f"{alpha_fit:.3f}")
         m3.metric("预测表层盐度", f"{c_surf_fit:.1f} mg/L")
-
-        with st.expander("📝 物理机制解释"):
-            st.write(f"""
-            **盐度分布规律**：
-            当前剖面呈现典型的**海水倒灌（Seawater Intrusion）**特征。
-            盐度随深度增加呈指数级上升。模型通过调整衰减常数 $\\alpha$，能够捕捉到盐分在土层深处的急剧扩散边界。
-            """)
