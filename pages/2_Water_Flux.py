@@ -111,19 +111,4 @@ else:
     col2.metric("通量方向", "向上 (蒸发补给)" if q_mean < 0 else "向下 (入渗/倒灌)")
     col3.metric("边界温度梯度", f"{dt_dz[0]:.2f} °C/m")
 
-    # 8. 物理原理展示
-    with st.expander("🧮 展开查看底层物理机制与反演方程"):
-        st.markdown("""
-        ### 1. 水热耦合物理机制
-        本模块利用温度作为天然示踪剂。在滨海盐沼湿地，水分的垂直运动会改变土壤剖面的热量分布。
-        
-        ### 2. 反演控制方程
-        根据一维稳定水热运移偏微分方程，水分通量 $q$ 可表示为：
-        """)
-        st.latex(r"q = -\alpha \frac{\partial^2 T / \partial z^2}{\partial T / \partial z}")
-        st.markdown("""
-        其中：
-        - $\\alpha$: 土壤热扩散率 (Thermal Diffusivity)
-        - $\partial T / \partial z$: 温度梯度 (一阶导数)
-        - $\partial^2 T / \partial z^2$: 温度剖面曲率 (二阶导数)
-        """)
+  
