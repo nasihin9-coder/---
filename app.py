@@ -17,7 +17,7 @@ for key, val in state_defaults.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-st.title("🌊 滨海盐沼水热盐耦合运移反演系统")
+st.title("🌊 基于热示踪的滨海盐沼土壤反演系统")
 
 # 修复图片加载逻辑
 img_path = "model_diagram.jpg"
