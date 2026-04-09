@@ -100,10 +100,3 @@ else:
         col1.metric("拟合准确度 (R²)", f"{display_r2:.4f}")
         col2.metric("均方根误差 (RMSE)", f"{rmse:.3f} °C")
         col3.metric("剖面计算深度", f"{z_obs.max():.2f} m")
-
-        with st.expander("📝 查看物理机制与方法"):
-            st.write("""
-            **空间场重构原理**：
-            系统基于滨海湿地一维热传导方程，利用 **Univariate Spline** 对离散传感器数据进行连续化处理。
-            通过调节 **物理平滑强度 (s)**，可以有效过滤传感器在土柱实验中产生的随机热扰动噪声。
-            """)
