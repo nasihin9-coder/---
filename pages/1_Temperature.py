@@ -72,11 +72,11 @@ else:
             ax.grid(True, linestyle=':', alpha=0.6)
             
             # 使用英文 Label 作为回退，确保即使字体失效也能看懂
-            ax.scatter(t_obs, z_obs, color='darkred', s=50, alpha=0.6, label='Measured (实测)')
-            ax.plot(t_smooth[:idx], z_smooth[:idx], color='red', linewidth=3, label='Reconstructed (重构)')
+            ax.scatter(t_obs, z_obs, color='darkred', s=50, alpha=0.6, label='Measured')
+            ax.plot(t_smooth[:idx], z_smooth[:idx], color='red', linewidth=3, label='Reconstructed')
             
-            ax.set_xlabel("Temperature / 温度 (°C)")
-            ax.set_ylabel("Depth / 深度 (m)")
+            ax.set_xlabel("Temperature / (°C)")
+            ax.set_ylabel("Depth / (m)")
             ax.invert_yaxis() # 深度坐标轴向下
             ax.legend()
             
