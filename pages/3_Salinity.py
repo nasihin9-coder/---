@@ -78,8 +78,8 @@ else:
         ax.plot(s_sim, z_sim, color='orange', linewidth=3, label='Fitted Curve')
         
         # 标签处理（解决乱码并保证跨平台识别）
-        ax.set_xlabel("Salinity / 盐度 (mg/L)")
-        ax.set_ylabel("Depth / 深度 (m)")
+        ax.set_xlabel("Salinity /(mg/L)")
+        ax.set_ylabel("Depth /(m)")
         ax.invert_yaxis() # 深度向下
         ax.legend()
         
